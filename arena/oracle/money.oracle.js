@@ -32,3 +32,14 @@ test("addCents sums", () => {
   assert.equal(addCents(1, 2, 3), 6);
   assert.equal(addCents(-5, 5), 0);
 });
+test("money: large and boundary values", () => {
+  assert.equal(addCents(2 ** 31, 2 ** 31), 2 ** 32);
+  assert.equal(addCents(2 ** 52, 1), 2 ** 52 + 1);
+  assert.equal(parseAmount("21474836.48"), 2147483648);
+  assert.equal(formatCents(2 ** 53 - 1), "$90,071,992,547,409.91");
+  assert.doesNotThrow(() => formatCents(2 ** 53));
+  assert.equal(formatCents(-(2 ** 31)), "-$21,474,836.48");
+});
+test("parseAmount: currency symbol only as a prefix", () => {
+  for (const bad of ["5$", "1$0", "5.00$", "$ 5"]) assert.throws(() => parseAmount(bad), undefined, bad);
+});

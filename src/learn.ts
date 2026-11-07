@@ -35,7 +35,8 @@ It must not mention this repo's file names, function names or literal values. De
 If an existing rule already covers it but was ignored, restate it sharper.
 Respond with JSON only: {"trigger": "...", "rule": "..."}`;
   try {
-    const r = await gw.chat([{ role: "user", content: prompt }], { json: true, maxTokens: 600, reasoningEffort: "low" });
+    // No response_format: not every provider honours it; we parse JSON out of the text instead.
+    const r = await gw.chat([{ role: "user", content: prompt }], { maxTokens: 1500, reasoningEffort: "low" });
     const j = parseJSON<{ trigger: string; rule: string }>(r.content);
     if (!j.rule || !j.trigger) return null;
     const lesson: Lesson = {
@@ -49,7 +50,8 @@ Respond with JSON only: {"trigger": "...", "rule": "..."}`;
     };
     await store.saveLesson(lesson);
     return lesson;
-  } catch {
+  } catch (e: any) {
+    console.error(`  ! learn failed on ${pr.id}: ${String(e?.message ?? e).slice(0, 300)}`);
     return null;
   }
 }

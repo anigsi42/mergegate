@@ -2,12 +2,13 @@
 // see. It is the stand-in for production: a merged change that fails it is an
 // escaped defect; a blocked change that passes it is a false block.
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ORACLE_DIR = fileURLToPath(new URL("../arena/oracle", import.meta.url));
+export const TASK_ORACLE_DIR = fileURLToPath(new URL("../arena/oracle-tasks", import.meta.url));
 
 export interface OracleResult {
   pass: boolean;
@@ -17,11 +18,13 @@ export interface OracleResult {
 }
 
 // `codeDir` is a directory holding the (patched) library: src/, package.json.
-export function runOracle(codeDir: string): OracleResult {
+// `taskId` adds that task's hidden acceptance spec, if one exists.
+export function runOracle(codeDir: string, taskId?: string): OracleResult {
   const dir = mkdtempSync(join(tmpdir(), "oracle-"));
   try {
     cpSync(codeDir, dir, { recursive: true, filter: (p) => !p.includes("/.git") && !p.includes("node_modules") });
     cpSync(ORACLE_DIR, join(dir, ".oracle"), { recursive: true });
+    if (taskId && existsSync(join(TASK_ORACLE_DIR, `${taskId}.oracle.js`))) cpSync(join(TASK_ORACLE_DIR, `${taskId}.oracle.js`), join(dir, ".oracle", `task-${taskId}.oracle.js`));
     const files = readdirSync(join(dir, ".oracle")).filter((f) => f.endsWith(".oracle.js")).map((f) => join(".oracle", f));
     const r = spawnSync("node", ["--test", "--test-timeout=20000", ...files], { cwd: dir, encoding: "utf8", timeout: 90_000 });
     const out = `${r.stdout ?? ""}`;

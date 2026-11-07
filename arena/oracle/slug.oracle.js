@@ -17,3 +17,6 @@ test("slugify: output shape and idempotence (properties)", () => {
     assert.equal(slugify(s), s);
   }
 });
+test("slugify: rejects non-strings", () => {
+  for (const bad of [null, undefined, 5, {}]) assert.throws(() => slugify(bad), TypeError);
+});

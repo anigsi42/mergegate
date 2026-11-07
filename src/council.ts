@@ -84,7 +84,8 @@ export async function convene(judge: Gateway | null, cross: Gateway | null, pr: 
   let primary: Verdict;
   try {
     primary = judge ? await judgeWithModel(judge, pr, ev, lessons, tri) : judgeHeuristic(ev);
-  } catch {
+  } catch (e: any) {
+    console.error(`  ! judge failed on ${pr.id}: ${String(e?.message ?? e).slice(0, 300)}`);
     primary = judgeHeuristic(ev);
   }
 
@@ -98,7 +99,8 @@ A first reviewer (a different model) concluded:
 ${brief(primary)}
 
 Do not defer to it. If it blocked, re-run its evidence and decide whether the breakage is real or speculative. If it approved, hunt for what it missed: probe edge cases, boundaries, error paths, defaults and anything the description does not mention.`);
-    } catch {
+    } catch (e: any) {
+      console.error(`  ! cross-exam failed on ${pr.id}: ${String(e?.message ?? e).slice(0, 300)}`);
       second = undefined;
     }
   }
