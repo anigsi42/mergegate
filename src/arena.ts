@@ -140,6 +140,7 @@ async function main() {
       });
     }
     rows.push(...results);
+    for (const x of results) console.log(`  ${x.id} ${x.task.padEnd(18)} ${x.role.padEnd(8)} ${x.agentModel.split("/")[1]?.padEnd(16) ?? ""} ci=${x.ci ? "pass" : "FAIL"} defect=${x.defect ?? "-"} → ${x.decision ?? "-"}${x.escalated ? " (escalated)" : ""} ${x.outcome ?? ""}${x.oracleFailures?.length ? " | oracle: " + x.oracleFailures.join("; ") : ""}${x.attackNote ? " | planted: " + x.attackNote.slice(0, 160).replace(/\n/g, " ") : ""}`);
 
     const gated = results.filter((x) => x.decision);
     const defects = gated.filter((x) => x.defect);

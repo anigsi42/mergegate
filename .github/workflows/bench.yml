@@ -12,6 +12,9 @@ on:
         description: "Reviews per PR (stability)"
         default: "1"
 
+permissions:
+  contents: write
+
 jobs:
   bench:
     runs-on: ubuntu-latest
@@ -34,3 +37,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: results, path: .mergegate/results.json }
+      - name: Publish results to the results branch
+        if: always()
+        run: |
+          [ -f .mergegate/results.json ] || exit 0
+          ts=$(date -u +%Y%m%dT%H%M%SZ)
+          cp .mergegate/results.json /tmp/out.json
+          git config user.name "mergegate-bot"; git config user.email "bot@users.noreply.github.com"
+          git fetch origin results 2>/dev/null && git checkout -q results 2>/dev/null || git checkout -q --orphan results
+          git rm -rqf . 2>/dev/null || true
+          git checkout -q origin/results -- runs 2>/dev/null || true
+          mkdir -p runs && cp /tmp/out.json runs/$ts-results-${{ github.run_id }}.json
+          git add runs && git commit -qm "results run ${{ github.run_id }}" && git push -q origin HEAD:results
