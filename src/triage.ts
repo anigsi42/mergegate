@@ -17,8 +17,9 @@ export interface Triage {
 
 const BASE = process.env.SUBQ_API_BASE ?? "https://api.subq.ai/v1/systemone";
 
+let disabled = false;
 export function triageAvailable() {
-  return !!process.env.SUBQ_API_KEY;
+  return !!process.env.SUBQ_API_KEY && !disabled;
 }
 
 function state(pr: PullRequest, ev: Evidence): string {
@@ -69,6 +70,10 @@ export async function triage(pr: PullRequest, ev: Evidence): Promise<Triage> {
         },
       }),
     });
+    if (res.status === 401 || res.status === 402 || res.status === 403) {
+      disabled = true; // bad key or no credits: stop calling, judge runs with default budget
+      return fallback(`subq ${res.status} — triage disabled for this run. Check SUBQ_API_KEY / credits.`);
+    }
     if (!res.ok) return fallback(`subq ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data: any = await res.json();
     const p = (k: string) => {

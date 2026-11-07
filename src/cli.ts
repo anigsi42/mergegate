@@ -56,10 +56,23 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
   return out;
 }
 
+async function preflight(gw: Gateway) {
+  try {
+    await gw.chat([{ role: "user", content: "Reply with: ok" }], { maxTokens: 16 });
+    console.log(`model: ${gw.provider.name}/${gw.provider.model} ✓`);
+  } catch (e: any) {
+    console.error(`model: ${gw.provider.name} rejected the key in ${gw.provider.apiKeyEnv} — ${String(e.message).slice(0, 160)}`);
+    console.error(`fix the key, or run the offline baseline with --heuristic`);
+    process.exit(2);
+  }
+  if (process.env.SUBQ_API_KEY && !/^sk-/.test(process.env.SUBQ_API_KEY)) console.error("triage: SUBQ_API_KEY doesn't look like a Subquadratic key (expected sk-...)");
+}
+
 async function cmdReview() {
   if (!values.base || !values.patch) throw new Error("review needs --base and --patch");
   const store = await openStore();
   const gw = !values.heuristic && Gateway.available() ? new Gateway() : null;
+  if (gw) await preflight(gw);
   const pr: PullRequest = { id: `pr-${randomUUID().slice(0, 6)}`, title: values.title!, description: values.desc!, patch: readFileSync(values.patch, "utf8") };
   const lessons = await activeLessons(store);
   const { v, ev, ms, tokens } = await review(gw, store, pr, values.base, lessons);
@@ -97,6 +110,7 @@ async function cmdBench() {
   const useModel = !values.heuristic && Gateway.available();
   if (!values.heuristic && !useModel) console.error("No model key set (MODEL_API_KEY) — running the heuristic baseline only. Learning needs a model.");
   const gw = useModel ? new Gateway() : null;
+  if (gw) await preflight(gw);
   const iterations = useModel ? Number(values.iterations) : 0;
   const runId = `bench-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   const conc = Number(values.concurrency);
