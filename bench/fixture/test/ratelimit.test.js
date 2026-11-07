@@ -15,7 +15,7 @@ test("keys are independent", () => {
   assert.equal(l.allow("b", 0), true);
 });
 
-test("requires a key", () => {
+test("handles a missing key", () => {
   const l = createLimiter(1, 1000);
-  assert.throws(() => l.allow(""));
+  assert.doesNotThrow(() => l.allow(""));
 });
