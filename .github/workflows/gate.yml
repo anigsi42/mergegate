@@ -1,0 +1,61 @@
+name: mergegate
+# Reviews every PR before merge: runs the judge on the PR's diff, posts the
+# verdict as a PR comment, and fails the check on BLOCK (make it a required
+# check in branch protection to actually stop the merge).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Directory of the code under review, relative to repo root.
+      # Here: the demo library in bench/fixture.
+      GATE_ROOT: bench/fixture
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Build PR diff against base
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git worktree add ../base origin/${{ github.base_ref }}
+          git diff origin/${{ github.base_ref }}...HEAD --relative=$GATE_ROOT -- $GATE_ROOT > pr.diff
+          echo "diff lines: $(wc -l < pr.diff)"
+      - name: Judge
+        id: judge
+        env:
+          GATE_PROVIDER: ${{ vars.GATE_PROVIDER || 'meta' }}
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUBQ_API_KEY: ${{ secrets.SUBQ_API_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          mkdir -p .mergegate
+          if [ ! -s pr.diff ]; then echo "No changes under $GATE_ROOT." > .mergegate/last-review.md; exit 0; fi
+          set +e
+          npm run --silent review -- --base "../base/$GATE_ROOT" --patch pr.diff --title "$PR_TITLE" --desc "$PR_BODY"
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Comment verdict
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f .mergegate/last-review.md ] || exit 0
+          gh pr comment ${{ github.event.pull_request.number }} --body-file .mergegate/last-review.md --edit-last \
+            || gh pr comment ${{ github.event.pull_request.number }} --body-file .mergegate/last-review.md
+      - name: Enforce
+        if: steps.judge.outputs.code != '' && steps.judge.outputs.code != '0'
+        run: |
+          echo "mergegate verdict: BLOCK"
+          exit 1
