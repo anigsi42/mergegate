@@ -66,7 +66,12 @@ async function main() {
   const judge = gw(values.judge!);
   const cross = gw(values.cross!);
   for (const g of [...swarm, ...attackSwarm, judge, cross].filter(Boolean) as Gateway[]) {
-    await g.chat([{ role: "user", content: "Reply: ok" }], { maxTokens: 8 }).catch((e) => { throw new Error(`${g.provider.name} preflight failed: ${String(e.message).slice(0, 160)}`); });
+    let ok = false;
+    for (let i = 0; i < 4 && !ok; i++) {
+      try { await g.chat([{ role: "user", content: "Reply: ok" }], { maxTokens: 8 }); ok = true; }
+      catch (e: any) { console.error(`  ! ${g.provider.name} preflight attempt ${i + 1}: ${String(e.message).slice(0, 160)}`); if (i < 3) await new Promise((r) => setTimeout(r, 20000)); }
+    }
+    if (!ok) throw new Error(`${g.provider.name} unavailable after retries`);
   }
   console.log(`builders: ${swarm.map((g) => g.provider.model).join(", ")} | attackers: ${attackSwarm.map((g) => g.provider.model).join(", ")} | judge: ${judge?.provider.model ?? "heuristic"} | cross: ${cross?.provider.model ?? "none"} | triage+arbiter: ${process.env.SUBQ_API_KEY ? "subq-snap-1.1" : "none"}`);
 

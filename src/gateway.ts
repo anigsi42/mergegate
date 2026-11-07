@@ -35,8 +35,8 @@ export const PROVIDERS: Record<string, Provider> = {
     name: "meta",
     baseURL: process.env.META_API_BASE ?? "https://api.meta.ai/v1",
     apiKeyEnv: "MODEL_API_KEY",
-    model: process.env.META_MODEL ?? "muse-spark-1.2",
-    fallbacks: (process.env.META_FALLBACKS ?? "muse-spark-1.3,muse-spark-1.1").split(",").filter(Boolean),
+    model: process.env.META_MODEL ?? "muse-spark-1.3",
+    fallbacks: (process.env.META_FALLBACKS ?? "muse-spark-1.2,muse-spark-1.1").split(",").filter(Boolean),
   },
   gemini: {
     name: "gemini",
@@ -127,7 +127,7 @@ export class Gateway {
         const text = await res.text();
         lastErr = new Error(`${this.provider.name}/${model} ${res.status}: ${text.slice(0, 400)}`);
         if (res.status === 429 || res.status >= 500) { await sleep(1000 * 2 ** attempt); continue; }
-        if (res.status === 404 && attempt < 2) { await sleep(1500 * (attempt + 1)); continue; } // seen transiently on Meta
+        if (res.status === 404 && attempt < 3) { await sleep(3000 * 2 ** attempt); continue; } // Meta returns transient 404s for live models
         if (res.status === 404) break; // try the next model
         throw lastErr; // 400/401/402/403: not retryable
       }
