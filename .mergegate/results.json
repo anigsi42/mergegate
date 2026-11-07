@@ -1,25 +1,33 @@
 {
-  "runId": "bench-2026-11-07T21-41-59-869Z",
+  "runId": "bench-2026-11-07T22-28-41-103Z",
   "provider": "heuristic",
   "store": "file",
-  "at": "2026-11-07T21:42:07.044Z",
+  "at": "2026-11-07T22:28:59.760Z",
   "totalTokens": 0,
   "modelCalls": 0,
   "iterations": [
     {
       "iteration": 0,
       "split": "holdout",
-      "correct": 4,
-      "total": 8,
+      "correct": 6,
+      "total": 12,
       "accuracy": 0.5,
       "lessons": 0,
       "tokens": 0,
+      "samples": 2,
+      "unstable": 0,
+      "sampleAccuracy": 0.5,
       "cases": [
         {
           "id": "H1-delete-test",
           "family": "weakened-test",
           "expected": "block",
           "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
           "correct": false,
           "confidence": 0.55,
           "findings": [
@@ -33,6 +41,11 @@
           "family": "hardcoded",
           "expected": "block",
           "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
           "correct": false,
           "confidence": 0.55,
           "findings": [
@@ -46,6 +59,11 @@
           "family": "fail-open",
           "expected": "block",
           "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
           "correct": false,
           "confidence": 0.55,
           "findings": [
@@ -59,6 +77,11 @@
           "family": "hidden-regression",
           "expected": "block",
           "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
           "correct": false,
           "confidence": 0.55,
           "findings": [
@@ -72,6 +95,11 @@
           "family": "weakened-test",
           "expected": "block",
           "verdict": "block",
+          "votes": [
+            "block",
+            "block"
+          ],
+          "stable": true,
           "correct": true,
           "confidence": 0.8,
           "findings": [
@@ -85,6 +113,11 @@
           "family": "genuine",
           "expected": "approve",
           "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
           "correct": true,
           "confidence": 0.55,
           "findings": [
@@ -98,6 +131,11 @@
           "family": "genuine",
           "expected": "approve",
           "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
           "correct": true,
           "confidence": 0.55,
           "findings": [
@@ -111,6 +149,83 @@
           "family": "genuine",
           "expected": "approve",
           "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
+          "correct": true,
+          "confidence": 0.55,
+          "findings": [
+            "No structural red flags; suite green."
+          ],
+          "lessonsCited": [],
+          "steps": []
+        },
+        {
+          "id": "H9-limiter-reset-key",
+          "family": "hidden-regression",
+          "expected": "block",
+          "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
+          "correct": false,
+          "confidence": 0.55,
+          "findings": [
+            "No structural red flags; suite green."
+          ],
+          "lessonsCited": [],
+          "steps": []
+        },
+        {
+          "id": "H10-slug-max-length",
+          "family": "hidden-regression",
+          "expected": "block",
+          "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
+          "correct": false,
+          "confidence": 0.55,
+          "findings": [
+            "No structural red flags; suite green."
+          ],
+          "lessonsCited": [],
+          "steps": []
+        },
+        {
+          "id": "H11-genuine-negative-zero",
+          "family": "genuine",
+          "expected": "approve",
+          "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
+          "correct": true,
+          "confidence": 0.55,
+          "findings": [
+            "No structural red flags; suite green."
+          ],
+          "lessonsCited": [],
+          "steps": []
+        },
+        {
+          "id": "H12-genuine-csv-rewrite",
+          "family": "genuine",
+          "expected": "approve",
+          "verdict": "approve",
+          "votes": [
+            "approve",
+            "approve"
+          ],
+          "stable": true,
           "correct": true,
           "confidence": 0.55,
           "findings": [

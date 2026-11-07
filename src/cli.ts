@@ -25,6 +25,7 @@ const { positionals, values } = parseArgs({
     reset: { type: "boolean", default: false },
     heuristic: { type: "boolean", default: false },
     concurrency: { type: "string", default: "4" },
+    samples: { type: "string", default: "1" },
     out: { type: "string", default: ".mergegate/results.json" },
   },
 });
@@ -101,7 +102,10 @@ interface IterationResult {
   total: number;
   lessons: number;
   tokens: number;
-  cases: { id: string; family: string; expected: string; verdict: string; correct: boolean; confidence: number; findings: string[]; lessonsCited: string[]; steps: string[] }[];
+  samples: number;
+  unstable: number; // cases whose samples disagreed
+  sampleAccuracy: number; // fraction of individual reviews that were right
+  cases: { id: string; family: string; expected: string; verdict: string; votes: string[]; stable: boolean; correct: boolean; confidence: number; findings: string[]; lessonsCited: string[]; steps: string[] }[];
 }
 
 async function cmdBench() {
@@ -122,12 +126,23 @@ async function cmdBench() {
     const lessons = await activeLessons(store);
     const tok0 = gw ? gw.usage.prompt_tokens + gw.usage.completion_tokens : 0;
     const set = cases(split);
-    const rs = await pool(set, conc, async (c: Case) => {
+    const n = Math.max(1, Number(values.samples));
+    const jobs = set.flatMap((c) => Array.from({ length: n }, (_, k) => ({ c, k })));
+    const raw = await pool(jobs, conc, async ({ c, k }) => {
       const r = await review(gw, store, prs.get(c.id)!, FIXTURE, lessons);
       const correct = r.v.verdict === c.label;
-      const rec: RunRecord = { runId, iteration, prId: c.id, verdict: r.v.verdict, expected: c.label, correct, confidence: r.v.confidence, findings: r.v.findings, lessonsUsed: r.v.lessonsCited, mode: r.v.mode, provider: gw?.provider.name, tokens: r.tokens, ms: r.ms, at: new Date().toISOString() };
+      const rec: RunRecord = { runId, iteration, prId: `${c.id}#${k}`, verdict: r.v.verdict, expected: c.label, correct, confidence: r.v.confidence, findings: r.v.findings, lessonsUsed: r.v.lessonsCited, mode: r.v.mode, provider: gw?.provider.name, tokens: r.tokens, ms: r.ms, at: new Date().toISOString() };
       await store.saveRun(rec);
       return { c, v: r.v, correct };
+    });
+    // Majority verdict per case; ties count as block (a gate should fail closed).
+    const rs = set.map((c) => {
+      const mine = raw.filter((r) => r.c.id === c.id);
+      const blocks = mine.filter((r) => r.v.verdict === "block").length;
+      const verdict: "approve" | "block" = blocks * 2 >= mine.length ? "block" : "approve";
+      const wrongSample = mine.find((r) => !r.correct);
+      const rep = mine.find((r) => r.v.verdict === verdict)!;
+      return { c, v: rep.v, verdict, correct: verdict === c.label, stable: blocks === 0 || blocks === mine.length, votes: mine.map((r) => r.v.verdict), wrongSample };
     });
     const res: IterationResult = {
       iteration,
@@ -137,10 +152,13 @@ async function cmdBench() {
       accuracy: rs.filter((r) => r.correct).length / rs.length,
       lessons: lessons.length,
       tokens: gw ? gw.usage.prompt_tokens + gw.usage.completion_tokens - tok0 : 0,
-      cases: rs.map((r) => ({ id: r.c.id, family: r.c.family, expected: r.c.label, verdict: r.v.verdict, correct: r.correct, confidence: r.v.confidence, findings: r.v.findings, lessonsCited: r.v.lessonsCited, steps: r.v.steps })),
+      samples: n,
+      unstable: rs.filter((r) => !r.stable).length,
+      sampleAccuracy: raw.filter((r) => r.correct).length / raw.length,
+      cases: rs.map((r) => ({ id: r.c.id, family: r.c.family, expected: r.c.label, verdict: r.verdict, votes: r.votes, stable: r.stable, correct: r.correct, confidence: r.v.confidence, findings: r.v.findings, lessonsCited: r.v.lessonsCited, steps: r.v.steps })),
     };
     results.push(res);
-    console.log(`iter ${iteration} ${split.padEnd(7)} ${res.correct}/${res.total} (${(res.accuracy * 100).toFixed(0)}%)  playbook=${lessons.length}  tokens=${res.tokens}  misses: ${rs.filter((r) => !r.correct).map((r) => r.c.id).join(", ") || "none"}`);
+    console.log(`iter ${iteration} ${split.padEnd(7)} ${res.correct}/${res.total} (${(res.accuracy * 100).toFixed(0)}%)  per-review ${(res.sampleAccuracy * 100).toFixed(0)}%  unstable=${res.unstable}  playbook=${lessons.length}  tokens=${res.tokens}  misses: ${rs.filter((r) => !r.correct).map((r) => r.c.id).join(", ") || "none"}`);
     return rs;
   };
 
@@ -157,8 +175,10 @@ async function cmdBench() {
     const train = await evaluate("train", it);
     for (const r of train) {
       await creditLessons(store, r.v, r.correct);
-      if (!r.correct) {
-        const l = await learnFromMiss(gw, store, prs.get(r.c.id)!, r.v, { expected: r.c.label, note: r.c.note });
+      // Learn from any wrong review — a majority miss, or a flip on an unstable case.
+      const miss = !r.correct ? r.v : r.wrongSample?.v;
+      if (miss) {
+        const l = await learnFromMiss(gw, store, prs.get(r.c.id)!, miss, { expected: r.c.label, note: r.c.note });
         if (l) { learned.push(l); console.log(`  + learned ${l.id} from ${r.c.id}: WHEN ${l.trigger} THEN ${l.rule}`); }
       }
     }
@@ -184,15 +204,15 @@ async function cmdBench() {
 
 function benchSummary(out: any): string {
   const hold = out.iterations.filter((r: IterationResult) => r.split === "holdout");
-  const rows = hold.map((r: IterationResult) => `| ${r.iteration} | ${r.correct}/${r.total} (${(r.accuracy * 100).toFixed(0)}%) | ${r.lessons} | ${r.tokens} | ${r.cases.filter((c) => !c.correct).map((c) => c.id).join(", ") || "—"} |`).join("\n");
+  const rows = hold.map((r: IterationResult) => `| ${r.iteration} | ${r.correct}/${r.total} (${(r.accuracy * 100).toFixed(0)}%) | ${(r.sampleAccuracy * 100).toFixed(0)}% | ${r.unstable} | ${r.lessons} | ${r.tokens} | ${r.cases.filter((c) => !c.correct).map((c) => c.id).join(", ") || "—"} |`).join("\n");
   const rules = out.playbook.filter((l: Lesson) => !l.retired).map((l: Lesson) => `- **${l.id}** (from ${l.source}, ${l.hits}✓/${l.misses}✗): WHEN ${l.trigger} THEN ${l.rule}`).join("\n");
   return `## mergegate learning-loop benchmark
 Judge: \`${out.provider}\` · memory: ${out.store} · ${out.modelCalls} model calls · ${out.totalTokens} tokens
 
 Held-out PRs (never learned from) — accuracy per iteration:
 
-| Iteration | Held-out accuracy | Playbook rules | Tokens | Misses |
-|---|---|---|---|---|
+| Iteration | Held-out accuracy (majority) | Per-review accuracy | Unstable PRs | Playbook rules | Tokens | Misses |
+|---|---|---|---|---|---|---|
 ${rows}
 
 ### Playbook learned this run

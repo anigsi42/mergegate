@@ -8,9 +8,9 @@ on:
       iterations:
         description: "Learning iterations"
         default: "3"
-  push:
-    branches: [main]
-    paths: ["src/**", "bench/**"]
+      samples:
+        description: "Reviews per PR (stability)"
+        default: "1"
 
 jobs:
   bench:
@@ -30,7 +30,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           SUBQ_API_KEY: ${{ secrets.SUBQ_API_KEY }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-        run: npm run bench -- --reset --iterations ${{ inputs.iterations || '3' }}
+        run: npm run bench -- --reset --iterations ${{ inputs.iterations || '3' }} --samples ${{ inputs.samples || '1' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: results, path: .mergegate/results.json }
