@@ -1,0 +1,24 @@
+{
+  "name": "mergegate",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "bench": "tsx src/cli.ts bench",
+    "review": "tsx src/cli.ts review",
+    "typecheck": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "mongodb": "^7.8.0"
+  },
+  "type": "module"
+}
