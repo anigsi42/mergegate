@@ -10,6 +10,7 @@ import { Case } from "../bench/cases.ts";
 import { PullRequest, gatherEvidence } from "./evidence.ts";
 import { Gateway } from "./gateway.ts";
 import { Verdict, judgeHeuristic, judgeWithModel } from "./judge.ts";
+import { triage } from "./triage.ts";
 import { activeLessons, creditLessons, learnFromMiss } from "./learn.ts";
 import { Lesson, RunRecord, Store, openStore } from "./memory.ts";
 
@@ -34,7 +35,10 @@ async function review(gw: Gateway | null, store: Store, pr: PullRequest, base: s
   const tokBefore = gw ? gw.usage.prompt_tokens + gw.usage.completion_tokens : 0;
   let v: Verdict;
   try {
-    v = gw ? await judgeWithModel(gw, pr, ev, lessons) : judgeHeuristic(ev);
+    const t = gw ? await triage(pr, ev) : undefined;
+    if (t?.error) console.error(`  ! triage: ${t.error}`);
+    v = gw ? await judgeWithModel(gw, pr, ev, lessons, t) : judgeHeuristic(ev);
+    v.triage = t;
   } catch (e) {
     console.error(`  ! ${pr.id}: model judge failed (${(e as Error).message.slice(0, 120)}); falling back to heuristic`);
     v = judgeHeuristic(ev);

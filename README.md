@@ -14,7 +14,8 @@ Agents optimise for "tests pass". In the bundled benchmark, **15 of 16 agent PRs
 |---|---|
 | Isolated apply + before/after test runs + diff signals | Real, deterministic |
 | Judge agent with tool loop (list/read/grep/run_probe/submit_verdict) | Real; needs a model key |
-| Provider-neutral gateway — Meta Model API (Muse Spark) default, Gemini, OpenRouter | Real; OpenAI-compatible `/chat/completions` |
+| Provider-neutral gateway — Meta Model API (Muse Spark) default; Gemini 4 Argon / 3.8 Flash; OpenRouter | Real; OpenAI-compatible `/chat/completions`. Gemini routes untested until a key is set |
+| Triage — Subquadratic Decisions (`subq-snap-1.1`) gives calibrated P(needs deep review / test gaming / unmentioned changes); sets the judge's tool budget and reasoning effort, never approves on its own | Real; needs `SUBQ_API_KEY`, untested until then |
 | Learning loop: misses → general rules → playbook, rules credited/retired by outcome | Real; needs a model key |
 | Run memory | MongoDB when `MONGODB_URI` is set; local JSON otherwise |
 | Benchmark: 16 labeled PRs on a small JS library, train/holdout split by failure family | Hand-built for this hackathon; bugs verified by probes |
@@ -26,6 +27,7 @@ Agents optimise for "tests pass". In the bundled benchmark, **15 of 16 agent PRs
 ```bash
 npm install
 export MODEL_API_KEY=...            # Meta Model API key (dev.meta.ai)
+export SUBQ_API_KEY=...             # optional: Subquadratic triage
 # optional: export MONGODB_URI=mongodb+srv://...   GATE_PROVIDER=gemini GEMINI_API_KEY=...
 npm run bench -- --reset --iterations 3
 ```
@@ -45,6 +47,7 @@ npm run review -- --base ./path/to/repo --patch pr.diff --title "..." --desc "wh
 - `src/gateway.ts` — provider-neutral model gateway with retries and token accounting
 - `src/evidence.ts` — sandboxed apply, test runs, diff signals, judge tools
 - `src/judge.ts` — agentic judge + heuristic floor
+- `src/triage.ts` — Subquadratic decision-model triage
 - `src/learn.ts` — distill misses into rules; credit/retire rules by outcome
 - `src/memory.ts` — MongoDB / file store
 - `bench/` — fixture library, 16 labeled agent PRs, patch builder

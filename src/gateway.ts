@@ -40,7 +40,13 @@ export const PROVIDERS: Record<string, Provider> = {
     name: "gemini",
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
     apiKeyEnv: "GEMINI_API_KEY",
-    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+    model: process.env.GEMINI_MODEL ?? "gemini-4-argon",
+  },
+  "gemini-flash": {
+    name: "gemini-flash",
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+    apiKeyEnv: "GEMINI_API_KEY",
+    model: "gemini-3.8-flash",
   },
   openrouter: {
     name: "openrouter",
@@ -84,7 +90,7 @@ export class Gateway {
     };
     if (opts.tools?.length) body.tools = opts.tools;
     if (opts.json) body.response_format = { type: "json_object" };
-    if (opts.reasoningEffort && this.provider.name === "meta") body.reasoning_effort = opts.reasoningEffort;
+    if (opts.reasoningEffort) body.reasoning_effort = opts.reasoningEffort === "minimal" ? "low" : opts.reasoningEffort;
 
     let lastErr: unknown;
     for (let attempt = 0; attempt < 4; attempt++) {
