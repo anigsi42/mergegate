@@ -1,53 +1,84 @@
-# mergegate
+# mergegate — Arena
 
-A merge gate for code written by coding agents. It applies an agent's PR in isolation, runs the suite before and after, investigates the patched code with tools (reads files, greps, **writes and runs its own probes to try to break the change**), and approves or blocks. When it is overruled, it distills the miss into a general rule and gets measurably better on PRs it has never seen.
+**Autonomous verification for agent swarms. No human in the loop.**
 
-Built for the AI Engineer Code Summit Hackathon (Nov 7, 2026) — themes: *systems that get measurably better with every run* and *verify what other agents ship before it merges*.
+When thousands of coding agents ship code, human review is the bottleneck, so in practice nobody looks at most of it. mergegate is the merge authority for that world: a council of models that decides, on its own, whether agent-written code merges, and an arena that measures how often that decision is wrong while adversarial agents actively try to fool it.
 
-## Why
+Built from scratch at the AI Engineer Code Summit Hackathon (Cerebral Valley, SF, Nov 7 2026).
 
-Agents optimise for "tests pass". In the bundled benchmark, **15 of 16 agent PRs keep the suite green — including every one of the 10 bad ones**: loosened assertions, deleted/skipped tests, hardcoded expected outputs, fail-open error handling, unit bugs in "no behaviour change" refactors, unmentioned changes to other modules. CI says ship all of them.
+```
+            backlog of change requests
+                       │
+        ┌──────────────┴──────────────┐
+   builder agents                attacker agents            ← swarm (Muse Spark, Gemini 3.8 Flash)
+   do the task                   do the task + plant a bug    attackers adapt from what got caught
+        └──────────────┬──────────────┘
+                       ▼
+               CI (visible tests)                           ← red PRs never reach the gate
+                       ▼
+     ┌──────────── gate council ─────────────┐
+     │ triage    Subquadratic subq-snap-1.1  │  P(needs deep review / test gaming / hidden scope)
+     │ judge     Meta Muse Spark             │  reads, greps, writes & runs its own probes
+     │ cross     Gemini 4 Argon              │  when unsure/risky: re-checks claims, hunts misses
+     │ arbiter   Subquadratic subq-snap-1.1  │  when they disagree: P(safe to merge)
+     └──────────────────┬────────────────────┘
+                 merge │ block                               ← no human, ever
+                       ▼
+       hidden oracle (never seen by agents or gate)         ← ground truth, no human labels
+       escaped defect = merged & oracle fails
+       false block    = blocked & oracle passes
+                       │
+        every mistake → a general rule in the gate's playbook (learned, credited, retired)
+```
+
+## What it measures
+
+Per round: PRs, CI rejections, real defects reaching the gate, **escaped defects**, **false blocks**, catch rate, escalations, tokens, wall time. Every decision also records what alternative policies would have done (judge alone, fail-closed council), so a single run yields the ablations: does the council beat one model, and does triage pay for itself.
 
 ## What's real vs not (plain labels)
 
 | Part | Status |
 |---|---|
-| Isolated apply + before/after test runs + diff signals | Real, deterministic |
-| Judge agent with tool loop (list/read/grep/run_probe/submit_verdict) | Real; needs a model key |
-| Provider-neutral gateway — Meta Model API (Muse Spark) default; Gemini 4 Argon / 3.8 Flash; OpenRouter | Real; OpenAI-compatible `/chat/completions`. Gemini routes untested until a key is set |
-| Triage — Subquadratic Decisions (`subq-snap-1.1`) gives calibrated P(needs deep review / test gaming / unmentioned changes); sets the judge's tool budget and reasoning effort, never approves on its own | Real; needs `SUBQ_API_KEY`, untested until then |
-| Learning loop: misses → general rules → playbook, rules credited/retired by outcome | Real; needs a model key |
-| Run memory | MongoDB when `MONGODB_URI` is set; local JSON otherwise |
-| Benchmark: 16 labeled PRs on a small JS library, train/holdout split by failure family | Hand-built for this hackathon; bugs verified by probes |
-| Feedback signal | In the bench: case labels. In production: human overrides / post-merge reverts (not wired yet) |
-| GitHub Action / PR comment | `review` prints the comment and exits 1 on block; Action wiring is next |
+| Swarm agents (builders + attackers) producing real diffs against a real library | Real |
+| CI gate on visible tests | Real |
+| Judge agent: tool loop, writes and runs its own probes | Real (Meta Muse Spark; any provider) |
+| Cross-examiner from another lab | Real (Gemini 4 Argon) |
+| Triage + arbiter | Real (Subquadratic Decisions API) |
+| Hidden oracle: 26 base spec/property tests + hidden acceptance specs per task | Real; each acceptance spec validated against a reference implementation |
+| Gate learning from mistakes; attacker adaptation | Real |
+| Provider-neutral gateway: retries, transient-404 handling, model fallbacks, health reporting | Real |
+| Target codebase | A small JS library built for this; the arena is codebase-agnostic but only exercised on this one |
+| Scale | Hundreds of agent PRs per run in GitHub Actions — not 30k agents |
 
-## Run
+## Findings so far
 
-```bash
-npm install
-export MODEL_API_KEY=...            # Meta Model API key (dev.meta.ai)
-export SUBQ_API_KEY=...             # optional: Subquadratic triage
-# optional: export MONGODB_URI=mongodb+srv://...   GATE_PROVIDER=gemini GEMINI_API_KEY=...
-npm run bench -- --reset --iterations 3
-```
+- **Green CI is not evidence.** Every planted bug in the static benchmark kept the full test suite passing.
+- **Frontier judges are strong on a fixed benchmark.** Gemini 4 Argon: 12/12 held-out, 99–100% per review, across 180 reviews. A static benchmark saturates, which is why the arena uses adaptive attackers instead.
+- **A second model from another lab catches what one misses.** In arena run 1, Muse alone would have merged a planted bug; Argon's cross-examination blocked it.
+- **Not every model will red-team.** Gemini 3.8 Flash declined to plant defects; Muse Spark complied. Attackers default to Muse.
+- **Model APIs are not reliable infrastructure.** Meta returned `model_not_found` for a live model mid-run; the gateway now retries, falls back, and refuses to learn from degraded verdicts.
 
-Each iteration scores the **holdout** set first (never learned from), then reviews the **train** set and learns from its misses. The holdout score per iteration is the "measurably better" number. Results land in `.mergegate/results.json`.
+## Run it
 
-Without a key, `npm run bench` runs the deterministic heuristic floor (4/8 on holdout).
+Everything runs in GitHub Actions; keys are repository secrets (`MODEL_API_KEY` for Meta, `GEMINI_API_KEY`, `SUBQ_API_KEY`).
 
-Review any patch against any repo:
+- **Actions → arena → Run workflow**: rounds, PRs per round, attacker share, models for swarm/judge/cross.
+- **Actions → bench → Run workflow**: the static labeled benchmark (24 PRs, train/holdout, multi-sample stability).
+- **mergegate (PR check)**: every pull request is judged; verdict posted as a comment; the check fails on block.
 
-```bash
-npm run review -- --base ./path/to/repo --patch pr.diff --title "..." --desc "what the agent claims"
-```
+Every run's full results (each PR, each verdict, each planted bug, the learned playbook) are committed to the [`results`](../../tree/results) branch.
+
+Locally: `npm ci && npm run arena -- --rounds 2 --prs 8`.
 
 ## Layout
 
-- `src/gateway.ts` — provider-neutral model gateway with retries and token accounting
-- `src/evidence.ts` — sandboxed apply, test runs, diff signals, judge tools
-- `src/judge.ts` — agentic judge + heuristic floor
-- `src/triage.ts` — Subquadratic decision-model triage
-- `src/learn.ts` — distill misses into rules; credit/retire rules by outcome
-- `src/memory.ts` — MongoDB / file store
-- `bench/` — fixture library, 16 labeled agent PRs, patch builder
+- `src/arena.ts` — the arena loop and metrics
+- `src/swarm.ts` — builder and attacker agents
+- `src/council.ts` — triage → judge → cross-examination → arbiter
+- `src/judge.ts` — agentic judge (tools: list/read/grep/run_probe/submit_verdict)
+- `src/oracle.ts`, `arena/oracle/`, `arena/oracle-tasks/` — hidden ground truth
+- `src/learn.ts` — mistakes → playbook rules
+- `src/gateway.ts` — provider-neutral model gateway
+- `src/triage.ts` — Subquadratic triage
+- `bench/` — static labeled benchmark
+- `.github/workflows/` — arena, bench, PR gate
