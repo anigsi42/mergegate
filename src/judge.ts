@@ -94,6 +94,11 @@ export async function judgeWithModel(gw: Gateway, pr: PullRequest, ev: Evidence,
     const forceVerdict = steps.length >= budget || turn === budget + 2;
     if (forceVerdict) messages.push({ role: "user", content: "Tool budget exhausted. Call submit_verdict now." });
     const reply = await gw.chat(messages, { tools: TOOLS, maxTokens: 2048, reasoningEffort: effort });
+    // Some providers return an empty assistant turn; echoing it back is rejected (400). Skip it and nudge.
+    if (!reply.content && !reply.tool_calls?.length) {
+      messages.push({ role: "user", content: "Continue: use the tools, then call submit_verdict." });
+      continue;
+    }
     messages.push(reply);
     const calls = reply.tool_calls ?? [];
     if (!calls.length) {

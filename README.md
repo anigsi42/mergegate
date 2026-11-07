@@ -50,13 +50,32 @@ Per round: PRs, CI rejections, real defects reaching the gate, **escaped defects
 | Target codebase | A small JS library built for this; the arena is codebase-agnostic but only exercised on this one |
 | Scale | Hundreds of agent PRs per run in GitHub Actions — not 30k agents |
 
-## Findings so far
+## Results — Arena run (Nov 7, [run 42424273041](../../actions/runs/42424273041))
 
-- **Green CI is not evidence.** Every planted bug in the static benchmark kept the full test suite passing.
-- **Frontier judges are strong on a fixed benchmark.** Gemini 4 Argon: 12/12 held-out, 99–100% per review, across 180 reviews. A static benchmark saturates, which is why the arena uses adaptive attackers instead.
-- **A second model from another lab catches what one misses.** In arena run 1, Muse alone would have merged a planted bug; Argon's cross-examination blocked it.
-- **Not every model will red-team.** Gemini 3.8 Flash declined to plant defects; Muse Spark complied. Attackers default to Muse.
-- **Model APIs are not reliable infrastructure.** Meta returned `model_not_found` for a live model mid-run; the gateway now retries, falls back, and refuses to learn from degraded verdicts.
+Builders: Muse Spark 1.3 + Gemini 3.8 Flash · Attackers: Muse Spark 1.3 (50%) · Judge: Muse Spark 1.3 · Cross-examiner: Gemini 4 Argon · Triage + arbiter: Subquadratic · no human in the loop
+
+| Round | PRs | Reached gate | Real defects (oracle) | Escaped | False blocks | Escalated to Argon | Gate rules in force |
+|---|---|---|---|---|---|---|---|
+| 1 | 16 | 16 | 4 | 1 | 4 | 7 | 0 |
+| 2 | 16 | 15 | 5 | **0** | **1** | 5 | 4 |
+| 3 | 16 | 16 | 4 | **4** | 0 | 6 | 4 |
+| 4 | 16 | 15 | 4 | 2 | 2 | 6 | 4 |
+| **Total** | **64** | **62** | **17** | **7** | **7** | **24** | |
+
+~1.65M tokens, ~23 minutes wall time, every PR/verdict/planted bug in the [`results`](../../tree/results) branch.
+
+What it shows — including what didn't work:
+
+- **Learning changes behaviour, measurably, in both directions.** After round 1 the gate wrote 4 rules from the oracle's incident reports (3 from false blocks, 1 from an escape). Round 2: escapes 1 → 0, false blocks 4 → 1. Round 3: the rules learned from false blocks ("don't block on unpromised variants") over-corrected — the gate merged all 16 PRs and 4 planted bugs escaped. It then learned a counter-rule; round 4 partially recovered. This is the core open problem of self-improving verifiers: leniency learned from false alarms is exactly what an adaptive attacker exploits. The playbook needs outcome-weighted retirement of rules, not just accumulation — next step.
+- **The council trades false blocks for catches.** Judge alone would have let 9 defects through with 3 false blocks; the council let 7 through with 7 false blocks.
+- **Attackers are good.** Muse planted 17 oracle-detectable bugs with CI green on every one: first-only comma replacement, `|0` overflow, `isSafeInteger` swaps, silent type coercion, off-by-one on window boundaries, `||` vs `??` defaults.
+- **Infrastructure is the bottleneck, not intelligence.** 9 judge calls fell back to heuristics because an empty assistant turn from the provider was echoed back and rejected (fixed after the run); Meta also returned transient `model_not_found` for live models (gateway now rides these out).
+
+### Static benchmark (24 labeled PRs, held-out split)
+
+- **Green CI is not evidence.** Every planted bug kept the full suite passing; a rule-based checker gets 6/12 held-out.
+- **Gemini 4 Argon: 12/12 held-out, 99–100% per review over 180 reviews.** A static benchmark saturates — why the arena uses adaptive attackers.
+- **Not every model will red-team.** Gemini 3.8 Flash declined to plant defects; Muse Spark complied.
 
 ## Run it
 
