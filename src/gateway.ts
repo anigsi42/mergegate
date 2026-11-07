@@ -27,6 +27,7 @@ export interface Provider {
   baseURL: string;
   apiKeyEnv: string;
   model: string;
+  fallbacks?: string[]; // tried in order if the model 404s or stays overloaded
 }
 
 export const PROVIDERS: Record<string, Provider> = {
@@ -35,6 +36,7 @@ export const PROVIDERS: Record<string, Provider> = {
     baseURL: process.env.META_API_BASE ?? "https://api.meta.ai/v1",
     apiKeyEnv: "MODEL_API_KEY",
     model: process.env.META_MODEL ?? "muse-spark-1.2",
+    fallbacks: (process.env.META_FALLBACKS ?? "muse-spark-1.3,muse-spark-1.1").split(",").filter(Boolean),
   },
   gemini: {
     name: "gemini",
@@ -65,6 +67,8 @@ export class Gateway {
   readonly provider: Provider;
   usage: Usage = { prompt_tokens: 0, completion_tokens: 0 };
   calls = 0;
+  fallbackCalls = 0;
+  errors = 0;
 
   constructor(providerName = process.env.GATE_PROVIDER ?? "meta") {
     const p = PROVIDERS[providerName];
@@ -92,37 +96,48 @@ export class Gateway {
     if (opts.json) body.response_format = { type: "json_object" };
     if (opts.reasoningEffort) body.reasoning_effort = opts.reasoningEffort === "minimal" ? "low" : opts.reasoningEffort;
 
+    const models = [this.provider.model, ...(this.provider.fallbacks ?? [])];
     let lastErr: unknown;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      try {
-        const res = await fetch(`${this.provider.baseURL}/chat/completions`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (res.status === 429 || res.status >= 500) {
-          lastErr = new Error(`${res.status} ${await res.text()}`);
-          await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    for (const model of models) {
+      body.model = model;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        let res: Response;
+        try {
+          res = await fetch(`${this.provider.baseURL}/chat/completions`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+        } catch (e) {
+          lastErr = e;
+          await sleep(1000 * 2 ** attempt);
           continue;
         }
-        if (!res.ok) throw new Error(`${this.provider.name} ${res.status}: ${await res.text()}`);
-        const data: any = await res.json();
-        this.calls++;
-        if (data.usage) {
-          this.usage.prompt_tokens += data.usage.prompt_tokens ?? 0;
-          this.usage.completion_tokens += data.usage.completion_tokens ?? 0;
+        if (res.ok) {
+          const data: any = await res.json();
+          this.calls++;
+          if (model !== this.provider.model) this.fallbackCalls++;
+          if (data.usage) {
+            this.usage.prompt_tokens += data.usage.prompt_tokens ?? 0;
+            this.usage.completion_tokens += data.usage.completion_tokens ?? 0;
+          }
+          const m = data.choices?.[0]?.message;
+          return { role: "assistant", content: m?.content ?? null, tool_calls: m?.tool_calls };
         }
-        const m = data.choices?.[0]?.message;
-        return { role: "assistant", content: m?.content ?? null, tool_calls: m?.tool_calls };
-      } catch (e) {
-        lastErr = e;
-        if (String(e).includes(" 4")) throw e;
-        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+        const text = await res.text();
+        lastErr = new Error(`${this.provider.name}/${model} ${res.status}: ${text.slice(0, 400)}`);
+        if (res.status === 429 || res.status >= 500) { await sleep(1000 * 2 ** attempt); continue; }
+        if (res.status === 404 && attempt < 2) { await sleep(1500 * (attempt + 1)); continue; } // seen transiently on Meta
+        if (res.status === 404) break; // try the next model
+        throw lastErr; // 400/401/402/403: not retryable
       }
     }
+    this.errors++;
     throw lastErr;
   }
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function parseJSON<T>(text: string | null): T {
   if (!text) throw new Error("empty model response");

@@ -41,7 +41,7 @@ async function review(gw: Gateway | null, store: Store, pr: PullRequest, base: s
     v = gw ? await judgeWithModel(gw, pr, ev, lessons, t) : judgeHeuristic(ev);
     v.triage = t;
   } catch (e) {
-    console.error(`  ! ${pr.id}: model judge failed (${(e as Error).message.slice(0, 120)}); falling back to heuristic`);
+    console.error(`  ! ${pr.id}: model judge failed (${(e as Error).message.slice(0, 300)}); falling back to heuristic`);
     v = judgeHeuristic(ev);
   }
   const tokens = gw ? gw.usage.prompt_tokens + gw.usage.completion_tokens - tokBefore : 0;
@@ -176,7 +176,8 @@ async function cmdBench() {
     for (const r of train) {
       await creditLessons(store, r.v, r.correct);
       // Learn from any wrong review — a majority miss, or a flip on an unstable case.
-      const miss = !r.correct ? r.v : r.wrongSample?.v;
+      const miss0 = !r.correct ? r.v : r.wrongSample?.v;
+      const miss = miss0?.mode === "model" ? miss0 : undefined; // never learn from a heuristic fallback
       if (miss) {
         const l = await learnFromMiss(gw, store, prs.get(r.c.id)!, miss, { expected: r.c.label, note: r.c.note });
         if (l) { learned.push(l); console.log(`  + learned ${l.id} from ${r.c.id}: WHEN ${l.trigger} THEN ${l.rule}`); }
@@ -198,6 +199,7 @@ async function cmdBench() {
   };
   writeFileSync(values.out!, JSON.stringify(out, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, benchSummary(out), { flag: "a" });
+  if (gw && (gw.errors || gw.fallbackCalls)) console.log(`model health: ${gw.errors} failed calls, ${gw.fallbackCalls} served by fallback models`);
   console.log(`\nwrote ${values.out}  (${out.modelCalls} model calls, ${out.totalTokens} tokens, store=${store.kind})`);
   await store.close();
 }
