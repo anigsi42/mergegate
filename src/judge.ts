@@ -82,13 +82,13 @@ ${pr.patch.slice(0, 14_000)}
 \`\`\``;
 }
 
-export async function judgeWithModel(gw: Gateway, pr: PullRequest, ev: Evidence, lessons: Lesson[], t?: Triage): Promise<Verdict> {
+export async function judgeWithModel(gw: Gateway, pr: PullRequest, ev: Evidence, lessons: Lesson[], t?: Triage, extra?: string): Promise<Verdict> {
   const budget = t?.toolBudget ?? 6;
   const effort = t?.effort ?? "medium";
   const steps: string[] = [];
   const messages: Message[] = [
     { role: "system", content: SYSTEM },
-    { role: "user", content: summarize(pr, ev, lessons, t) },
+    { role: "user", content: summarize(pr, ev, lessons, t) + (extra ? `\n\n${extra}` : "") },
   ];
   for (let turn = 0; turn <= budget + 2; turn++) {
     const forceVerdict = steps.length >= budget || turn === budget + 2;

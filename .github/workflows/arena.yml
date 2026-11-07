@@ -1,0 +1,34 @@
+name: arena
+on:
+  workflow_dispatch:
+    inputs:
+      rounds: { description: "Rounds", default: "4" }
+      prs: { description: "PRs per round", default: "16" }
+      attackers: { description: "Attacker share 0-1", default: "0.5" }
+      swarm: { description: "Swarm models (comma list)", default: "meta,gemini-flash" }
+      judge: { description: "Primary judge", default: "meta" }
+      cross: { description: "Cross-examiner (or none)", default: "gemini" }
+      concurrency: { description: "Parallel agents", default: "6" }
+
+jobs:
+  arena:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Arena
+        env:
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUBQ_API_KEY: ${{ secrets.SUBQ_API_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: >
+          npm run arena -- --rounds ${{ inputs.rounds }} --prs ${{ inputs.prs }} --attackers ${{ inputs.attackers }}
+          --swarm ${{ inputs.swarm }} --judge ${{ inputs.judge }} --cross ${{ inputs.cross }} --concurrency ${{ inputs.concurrency }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: arena, path: .mergegate/arena.json }

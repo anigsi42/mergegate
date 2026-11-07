@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "bench": "tsx src/cli.ts bench",
     "review": "tsx src/cli.ts review",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "arena": "tsx src/arena.ts"
   },
   "keywords": [],
   "author": "",
