@@ -28,7 +28,7 @@ Built from scratch at the AI Engineer Code Summit Hackathon (Cerebral Valley, SF
        escaped defect = merged & oracle fails
        false block    = blocked & oracle passes
                        │
-        every mistake → a general rule in the gate's playbook (learned, credited, retired)
+        every mistake → playbook memory (layer 1 of the learning stack below)
 ```
 
 ## What it measures
@@ -76,6 +76,23 @@ What it shows — including what didn't work:
 - **Green CI is not evidence.** Every planted bug kept the full suite passing; a rule-based checker gets 6/12 held-out.
 - **Gemini 4 Argon: 12/12 held-out, 99–100% per review over 180 reviews.** A static benchmark saturates — why the arena uses adaptive attackers.
 - **Not every model will red-team.** Gemini 3.8 Flash declined to plant defects; Muse Spark complied.
+
+## Why this matters past today: verification is the bottleneck for superhuman coding
+
+As models get better at writing code, the hard problem moves to *checking* it: scalable oversight. You cannot hand-label millions of agent PRs, and agents optimise against whatever check you give them (round 3 is a live example of that Goodhart effect). The arena is built around that:
+
+- **Verifiable reward without humans.** The hidden oracle turns every agent PR into a labelled example with a ground-truth reward. The arena is a data engine, not just a test.
+- **Adversarial co-evolution.** Attackers adapt to the verifier, so the evaluation gets harder as the verifier gets better, instead of saturating like our static benchmark did.
+- **Cross-lab oversight.** Models from different labs check each other; disagreement is a signal, resolved by a separate decision model.
+
+### The learning stack (layer 1 is what ran today)
+
+1. **Playbook memory** *(built)* — the judge distils each mistake into guidance it reads on future reviews. Weakness shown in round 3: lessons are unconditional and unweighted, so leniency learned from false alarms becomes an exploit.
+2. **Precedent memory** — retrieve the most similar past PRs and their real outcomes; reason from evidence, not abstractions.
+3. **Executable probe library** — every probe that caught a real bug is kept as code and run on future PRs. Verification knowledge that executes and compounds.
+4. **Goal- and cost-aware decision policy** — merge/escalate/block thresholds learned from outcomes, weighted by the cost of error in that domain (an escaped defect in a trading system is not a typo in docs).
+5. **Long-context reasoning over whole systems** — reviewing a change against the full codebase, its history and its incident record, not a diff in isolation.
+6. **Training the verifier itself** — fine-tune open-weight judges on oracle-scored review trajectories (reinforcement learning from verifiable reward), with the arena generating the data.
 
 ## Run it
 
