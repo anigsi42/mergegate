@@ -1,0 +1,36 @@
+name: bench
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "Model route (meta | gemini | gemini-flash | openrouter)"
+        default: meta
+      iterations:
+        description: "Learning iterations"
+        default: "3"
+  push:
+    branches: [main]
+    paths: ["src/**", "bench/**"]
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Learning-loop benchmark
+        env:
+          GATE_PROVIDER: ${{ inputs.provider || 'meta' }}
+          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SUBQ_API_KEY: ${{ secrets.SUBQ_API_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: npm run bench -- --reset --iterations ${{ inputs.iterations || '3' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: results, path: .mergegate/results.json }

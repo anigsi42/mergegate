@@ -177,8 +177,27 @@ async function cmdBench() {
     learnedThisRun: learned.map((l) => l.id),
   };
   writeFileSync(values.out!, JSON.stringify(out, null, 2));
+  if (process.env.GITHUB_STEP_SUMMARY) writeFileSync(process.env.GITHUB_STEP_SUMMARY, benchSummary(out), { flag: "a" });
   console.log(`\nwrote ${values.out}  (${out.modelCalls} model calls, ${out.totalTokens} tokens, store=${store.kind})`);
   await store.close();
+}
+
+function benchSummary(out: any): string {
+  const hold = out.iterations.filter((r: IterationResult) => r.split === "holdout");
+  const rows = hold.map((r: IterationResult) => `| ${r.iteration} | ${r.correct}/${r.total} (${(r.accuracy * 100).toFixed(0)}%) | ${r.lessons} | ${r.tokens} | ${r.cases.filter((c) => !c.correct).map((c) => c.id).join(", ") || "—"} |`).join("\n");
+  const rules = out.playbook.filter((l: Lesson) => !l.retired).map((l: Lesson) => `- **${l.id}** (from ${l.source}, ${l.hits}✓/${l.misses}✗): WHEN ${l.trigger} THEN ${l.rule}`).join("\n");
+  return `## mergegate learning-loop benchmark
+Judge: \`${out.provider}\` · memory: ${out.store} · ${out.modelCalls} model calls · ${out.totalTokens} tokens
+
+Held-out PRs (never learned from) — accuracy per iteration:
+
+| Iteration | Held-out accuracy | Playbook rules | Tokens | Misses |
+|---|---|---|---|---|
+${rows}
+
+### Playbook learned this run
+${rules || "_none_"}
+`;
 }
 
 const cmd = positionals[0];
