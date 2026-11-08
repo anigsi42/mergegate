@@ -2,7 +2,7 @@
 export function parseAmount(input) {
   if (typeof input !== "string") throw new TypeError("amount must be a string");
   const s = input.replace(/^\$/, "");
-  if (!/^-?\d+(\.\d{1,2})?$/.test(s)) throw new Error(`invalid amount: ${input}`);
+  if (!/^-?\d*(\.\d{1,2})?$/.test(s)) throw new Error(`invalid amount: ${input}`);
   const [whole, frac = ""] = s.replace("-", "").split(".");
   const cents = Number(whole) * 100 + Number(frac.padEnd(2, "0"));
   return s.startsWith("-") ? -cents : cents;

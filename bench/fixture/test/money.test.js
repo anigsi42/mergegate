@@ -8,6 +8,11 @@ test("parses whole and fractional amounts", () => {
   assert.equal(parseAmount("0.5"), 50);
 });
 
+test("no leading zero", () => {
+  assert.equal(parseAmount(".5"), 50);
+  assert.equal(parseAmount("$.25"), 25);
+});
+
 test("parses negatives", () => {
   assert.equal(parseAmount("-3.10"), -310);
 });
