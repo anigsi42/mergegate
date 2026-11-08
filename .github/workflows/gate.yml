@@ -52,8 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           [ -f .mergegate/last-review.md ] || exit 0
-          gh pr comment ${{ github.event.pull_request.number }} --body-file .mergegate/last-review.md --edit-last \
-            || gh pr comment ${{ github.event.pull_request.number }} --body-file .mergegate/last-review.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file .mergegate/last-review.md
       - name: Enforce
         if: steps.judge.outputs.code != '' && steps.judge.outputs.code != '0'
         run: |
