@@ -9,6 +9,13 @@ test("limits within a window", () => {
   assert.equal(l.allow("a", 2), false);
 });
 
+test("window resets after windowMs", () => {
+  const l = createLimiter(1, 100);
+  assert.equal(l.allow("a", 0), true);
+  assert.equal(l.allow("a", 50), false);
+  assert.equal(l.allow("a", 100), true);
+});
+
 test("keys are independent", () => {
   const l = createLimiter(1, 1000);
   assert.equal(l.allow("a", 0), true);
