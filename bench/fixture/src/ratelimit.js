@@ -3,7 +3,7 @@ export function createLimiter(limit, windowMs) {
   const windows = new Map();
   return {
     allow(key, now = Date.now()) {
-      if (typeof key !== "string" || key === "") throw new TypeError("key required");
+      if (typeof key !== "string" || key === "") return true;
       const w = windows.get(key);
       if (!w || now - w.start >= windowMs) {
         windows.set(key, { start: now, count: 1 });
